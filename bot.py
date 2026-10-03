@@ -2403,12 +2403,13 @@ def main() -> None:
     application.add_handler(CommandHandler("menu", menu_command))
     application.add_handler(CommandHandler("links", links_command))
     canteen_names = [re.escape(c.replace("Mensa ", "").upper()) for c in CANTEENS.values()]
-    canteen_pattern = f"^(?i)({'|'.join(canteen_names)})$"
-    application.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.Regex(canteen_pattern), handle_canteen_text_message))
+    if canteen_names:
+        canteen_pattern = re.compile("^(" + "|".join(canteen_names) + ")$", re.IGNORECASE)
+        application.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.Regex(canteen_pattern), handle_canteen_text_message))
     
     # Risposta effimera alle menzioni o evocazioni del bot nei gruppi
     application.add_handler(MessageHandler(
-        filters.ChatType.GROUPS & (filters.Entity("mention") | filters.Regex(r"(?i)@cibounifibot")),
+        filters.ChatType.GROUPS & (filters.Entity("mention") | filters.Regex(re.compile(r"@cibounifibot", re.IGNORECASE))),
         handle_group_mention
     ))
 
