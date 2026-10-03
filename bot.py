@@ -1736,7 +1736,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if is_private:
         try:
             await update.message.reply_sticker(
-                "CAACAgQAAxkBAAIZ8mmchOMO2Rz876mpp7_WxFD5O0m1AAJOGgACzXyZUdEKftV24SvlOgQ",
+                "CAACAgQAAxkBAAIpKGqiv6MPsEBXcmawt0aBHsU3PrmSAAJwHwACOxwRUYGOMtqXij1vPQQ",
                 reply_markup=get_canteen_reply_keyboard()
             )
         except Exception as e:
