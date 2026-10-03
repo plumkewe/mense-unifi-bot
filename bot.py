@@ -79,7 +79,7 @@ def load_menu():
         except Exception as e:
             logger.warning(f"Errore lettura menu.json locale: {e}")
     try:
-        r = requests.get("https://raw.githubusercontent.com/plumkewe/mense-unipi-bot/main/data/unifi/menu.json", timeout=10)
+        r = requests.get("https://raw.githubusercontent.com/plumkewe/mense-unipi-bot/refs/heads/main/data/unifi/menu.json", headers={"Cache-Control": "no-cache"}, timeout=10)
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -98,7 +98,7 @@ def load_canteens_full():
         except Exception as e:
             logger.warning(f"Errore lettura canteens.json locale: {e}")
     try:
-        r = requests.get("https://raw.githubusercontent.com/plumkewe/mense-unipi-bot/main/data/unifi/canteens.json", timeout=10)
+        r = requests.get("https://raw.githubusercontent.com/plumkewe/mense-unipi-bot/refs/heads/main/data/unifi/canteens.json", headers={"Cache-Control": "no-cache"}, timeout=10)
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -121,7 +121,7 @@ def load_feste():
         except Exception:
             pass
     try:
-        r = requests.get("https://raw.githubusercontent.com/plumkewe/mense-unipi-bot/main/data/unifi/feste.json", timeout=10)
+        r = requests.get("https://raw.githubusercontent.com/plumkewe/mense-unipi-bot/refs/heads/main/data/unifi/feste.json", headers={"Cache-Control": "no-cache"}, timeout=10)
         if r.status_code == 200:
             return r.json()
     except Exception:
@@ -129,6 +129,24 @@ def load_feste():
     return {}
 
 FESTE = load_feste()
+
+def reload_data_job(context=None):
+    """Job periodico per ricaricare i dati aggiornati da GitHub."""
+    global MENU, CANTEENS, CANTEENS_FULL, FESTE
+    try:
+        new_menu = load_menu()
+        if new_menu:
+            MENU = new_menu
+            logger.info(f"Menu ricaricato da remoto: {len(MENU)} date caricate.")
+        new_canteens_full = load_canteens_full()
+        if new_canteens_full:
+            CANTEENS_FULL = new_canteens_full
+            CANTEENS = {c["id"]: c["name"] for c in new_canteens_full}
+        new_feste = load_feste()
+        if new_feste:
+            FESTE = new_feste
+    except Exception as e:
+        logger.warning(f"Errore durante aggiornamento periodico dati: {e}")
 
 def get_holiday_status(canteen_id, date_obj):
     canteen_feste = FESTE.get(canteen_id, [])
@@ -220,6 +238,14 @@ COMBINATIONS = load_combinations()
 
 def get_menu_text(date_str, meal_type, canteen_name=None):
     """Recupera il testo del menù per una data, un tipo di pasto e una mensa specifica."""
+    global MENU
+    if date_str not in MENU:
+        try:
+            fresh = load_menu()
+            if fresh and date_str in fresh:
+                MENU = fresh
+        except Exception:
+            pass
     day_menu = MENU.get(date_str)
     
     # Intestazione Data Decorativa
@@ -2423,9 +2449,10 @@ def main() -> None:
     if WEBHOOK_URL:
         logger.info(f"Avvio in modalità WEBHOOK su porta {PORT}")
         
-        # Avvia il ping periodico ogni 14 minuti (840 secondi)
+        # Avvia il ping periodico ogni 14 minuti (840 secondi) e il ricaricamento dati ogni 30 minuti
         if application.job_queue:
             application.job_queue.run_repeating(self_ping, interval=840, first=60)
+            application.job_queue.run_repeating(reload_data_job, interval=1800, first=300)
         else:
             logger.error("JobQueue non disponibile! Il self-ping non funzionerà.")
 
@@ -2441,6 +2468,8 @@ def main() -> None:
             raise e
     else:
         logger.info("Avvio in modalità POLLING")
+        if application.job_queue:
+            application.job_queue.run_repeating(reload_data_job, interval=1800, first=300)
         application.run_polling(allowed_updates=Update.ALL_TYPES)
         
 if __name__ == "__main__":
